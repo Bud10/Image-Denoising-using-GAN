@@ -5,6 +5,7 @@ import os
 import glob
 import shutil
 
+#Loads images, resizes to (256,256) then normalizes to [-1,1] range
 def load_and_preprocess(noisy_path, clean_path):
     noisy_image = cv2.imread(noisy_path)
     clean_image = cv2.imread(clean_path)
@@ -20,6 +21,7 @@ def load_and_preprocess(noisy_path, clean_path):
     clean_image = (clean_image - 127.5) / 127.5  # Normalize to [-1, 1]
     return noisy_image, clean_image
 
+ #Creates matching pairs of images and saves in dataset/cache
 def prepare_data(noisy_dirs, clean_dir, cache_dir="D:/dataset/cache"):
     # Clear existing cache directory to ensure overwrite
     if os.path.exists(cache_dir):
@@ -102,11 +104,14 @@ def prepare_data(noisy_dirs, clean_dir, cache_dir="D:/dataset/cache"):
         print(f"Unmatched noisy images: {len(unmatched_noisy)}")
         print("Sample unmatched noisy:", unmatched_noisy[:5])
     
+    print("Sample pairs:", image_pairs[:5])
+
+    #Images are generated using load_and_preprocess function
     def image_generator():
         for noisy_path, clean_path in image_pairs:
             noisy, clean = load_and_preprocess(noisy_path, clean_path)
             yield noisy, clean
-
+    #Dataset of tensor is created using list of paired images
     dataset = tf.data.Dataset.from_generator(
         image_generator,
         output_types=(tf.float32, tf.float32),
