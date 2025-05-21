@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow import keras
 from keras import layers
 import matplotlib.pyplot as plt
 from skimage.metrics import peak_signal_noise_ratio as psnr
@@ -13,19 +12,19 @@ def build_generator():
     model = tf.keras.Sequential()
     model.add(layers.Input(shape=(256, 256, 3)))
     model.add(layers.Conv2D(64, (4, 4), strides=(2, 2), padding='same'))
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Conv2D(128, (4, 4), strides=(2, 2), padding='same'))
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Conv2DTranspose(128, (4, 4), strides=(2, 2), padding='same'))
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Conv2DTranspose(64, (4, 4), strides=(2, 2), padding='same'))
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Conv2D(3, (3, 3), padding='same', activation='tanh'))
     return model
@@ -35,15 +34,15 @@ def build_discriminator():
     model = tf.keras.Sequential()
     model.add(layers.Input(shape=(256, 256, 3)))
     model.add(layers.Conv2D(64, (4, 4), strides=(2, 2), padding='same'))
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Conv2D(128, (4, 4), strides=(2, 2), padding='same'))
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Conv2D(256, (4, 4), strides=(2, 2), padding='same'))
     model.add(layers.BatchNormalization())
-    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.LeakyReLU(negative_slope=0.2))
     
     model.add(layers.Flatten())
     model.add(layers.Dense(1, activation='sigmoid'))
@@ -72,6 +71,8 @@ def generator_loss(fake_output, generated_image, target_image):
 # Training step
 @tf.function
 def train_step(noisy_images, clean_images, generator, discriminator, gan, g_optimizer, d_optimizer):
+    # Ensure discriminator is trainable for its update
+    discriminator.trainable = True
     with tf.GradientTape() as g_tape, tf.GradientTape() as d_tape:
         generated_images = generator(noisy_images, training=True)
         
@@ -86,6 +87,9 @@ def train_step(noisy_images, clean_images, generator, discriminator, gan, g_opti
     
     g_optimizer.apply_gradients(zip(g_gradients, generator.trainable_variables))
     d_optimizer.apply_gradients(zip(d_gradients, discriminator.trainable_variables))
+    
+    # Reset discriminator trainable state for GAN
+    discriminator.trainable = False
     
     return g_loss, d_loss
 
@@ -109,7 +113,7 @@ def test_model(generator, dataset, split_name, num_samples=3, epoch=0, output_di
         generated_np = (generated.numpy() + 1) / 2
         
         psnr_value = psnr(clean_np, generated_np, data_range=1.0)
-        ssim_value = ssim(clean_np, generated_np, data_range=1.0, multichannel=True)
+        ssim_value = ssim(clean_np, generated_np, data_range=1.0, channel_axis=-1)
         psnr_values.append(psnr_value)
         ssim_values.append(ssim_value)
         
@@ -145,7 +149,7 @@ def split_dataset(dataset, train_split=0.8, val_split=0.1):
     print(f"Total samples: {len(data_list)}")
     
     # Split into train, validation, and test
-    train_data, temp_data = train_test_split(data_list, train_size=train_split, random_state=None)  # No seed for randomness
+    train_data, temp_data = train_test_split(data_list, train_size=train_split, random_state=None)
     val_data, test_data = train_test_split(temp_data, train_size=val_split/(1-train_split), random_state=None)
     
     print(f"Training samples: {len(train_data)}")
@@ -195,15 +199,17 @@ def train_gan(train_dataset, val_dataset, epochs, generator, discriminator, gan,
 
 # Main execution
 if __name__ == '__main__':
+    # Enable mixed precision for GPU optimization
+    from keras import mixed_precision
+    mixed_precision.set_global_policy('mixed_float16')
+    
+    # Verify GPU availability
+    print("Num GPUs Available:", len(tf.config.list_physical_devices('GPU')))
+    
     # Initialize models
     generator = build_generator()
     discriminator = build_discriminator()
     gan = build_gan(generator, discriminator)
-    
-    # Compile models
-    generator.compile(optimizer=tf.keras.optimizers.Adam(1e-4))
-    discriminator.compile(optimizer=tf.keras.optimizers.Adam(1e-4))
-    gan.compile(optimizer=tf.keras.optimizers.Adam(1e-4))
     
     # Load cached dataset
     cache_dir = "D:/dataset/cache"
@@ -217,8 +223,8 @@ if __name__ == '__main__':
     train_dataset, val_dataset, test_dataset = split_dataset(dataset, train_split=0.8, val_split=0.1)
     
     # Apply batching and prefetching
-    batch_size = 32  # Can be changed to any batch size
-    train_dataset = train_dataset.shuffle(buffer_size=5000).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    batch_size = 32
+    train_dataset = train_dataset.shuffle(buffer_size=10960).batch(batch_size).prefetch(tf.data.AUTOTUNE)
     val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     
