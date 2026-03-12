@@ -11,7 +11,7 @@ Contains generator and discriminator code.
 Loads the dataset from cache dir.
 splits the data into 80% training, 10% testing, 10% validation.
 
-##Result
+## Result
 The result presents a comparative analysis of Generative Adversarial 
 Network (GAN)-based image denoising models, including CGAN, SRGAN, ESRGAN, and a 
 proposed Denoising GAN framework. Performance evaluation is 
@@ -25,3 +25,5 @@ adversarial convergence. The results highlight the effectiveness of the proposed
 high-resolution image restoration in applications such as media publishing, facial 
 recognition, and digital archival enhancement.
 <img width="1103" height="516" alt="img2" src="https://github.com/user-attachments/assets/c5c8c39a-f8e3-49b1-adf1-7dfca4d0b85d" />
+
+<img width="1085" height="515" alt="img1" src="https://github.com/user-attachments/assets/b0964fe9-728d-4c2d-8494-0b198d6038f9" />
